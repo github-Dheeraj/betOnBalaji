@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.7;
+pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+import "hardhat/console.sol";
 
 contract BettingPlatform {
     IERC20 public wbtc;
@@ -27,9 +28,12 @@ contract BettingPlatform {
         uint256 amount,
         uint256 effectiveAmount
     );
-    event BetsResolved(BetType winningSide);
+    event BetsResolved(uint btcPrice, BetType winningSide);
     event RewardClaimed(address indexed user, uint256 reward);
 
+    //duration in seconds
+    //_priceFeed, chainlink priceFeed address for specific chain
+    //_wbtcAddress is on specific chain /usdc address / Accepting token address
     constructor(
         address _wbtcAddress,
         AggregatorV3Interface _priceFeed,
@@ -46,18 +50,22 @@ contract BettingPlatform {
         }
 
         uint256 remainingTime = deadline - block.timestamp;
+        //change the 1 days to 1 days
         uint256 totalTime = deadline - (block.timestamp - 90 days);
         uint256 bonusFactorRange = BONUS_FACTOR_MAX - BONUS_FACTOR_MIN;
 
         uint256 bonusFactor = BONUS_FACTOR_MIN +
             (remainingTime * bonusFactorRange) /
             totalTime;
+        console.log(bonusFactor);
         return bonusFactor;
     }
 
-    function placeBet(BetType _betType, uint256 _amount) external payable {
+    //place bet is had _betType enum value, amount in native currency
+    function placeBet(BetType _betType, uint256 _amount) external {
         require(block.timestamp < deadline, "Betting closed");
         require(_amount > 0, "Invalid amount");
+        require(_betType != BetType.Invalid, "Bet Type is invalid");
 
         uint256 bonusFactor = calculateBonusFactor();
         uint256 effectiveAmount = (_amount * bonusFactor) / 1 ether;
@@ -70,6 +78,8 @@ contract BettingPlatform {
         emit BetPlaced(msg.sender, _betType, _amount, effectiveAmount);
     }
 
+    //Single time bet settlement
+    //anyone can call this fucntion
     function resolveBets() external {
         require(block.timestamp >= deadline, "Betting still open");
         require(winningSide == BetType.Invalid, "Bets already resolved");
@@ -80,10 +90,12 @@ contract BettingPlatform {
         winningSide = uint256(btcPrice) >= 1000000 * 10 ** 8
             ? BetType.ProBalaji
             : BetType.ProBanks;
+        // winningSide = uint256(_btcPrice) >= 1000000 ? BetType.ProBalaji : BetType.ProBanks;
 
-        emit BetsResolved(winningSide);
+        emit BetsResolved(uint256(btcPrice), winningSide);
     }
 
+    //this can be called onlyOnnce per user
     function claimReward() external {
         require(winningSide != BetType.Invalid, "Bets not resolved yet");
 
@@ -118,5 +130,10 @@ contract BettingPlatform {
 
     function getWinningSide() external view returns (BetType) {
         return winningSide;
+    }
+
+    function getRemainingTime() public view returns (uint256) {
+        require(block.timestamp > deadline, "Betting closed");
+        return deadline - block.timestamp;
     }
 }
