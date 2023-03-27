@@ -6,7 +6,7 @@ import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "hardhat/console.sol";
 
 contract BettingPlatform {
-    IERC20 public wbtc;
+    IERC20 public usdc;
     AggregatorV3Interface public priceFeed;
     uint256 public deadline;
 
@@ -33,13 +33,13 @@ contract BettingPlatform {
 
     //duration in seconds
     //_priceFeed, chainlink priceFeed address for specific chain
-    //_wbtcAddress is on specific chain /usdc address / Accepting token address
+    //_usdcAddress is on specific chain /usdc address / Accepting token address
     constructor(
-        address _wbtcAddress,
+        address _usdcAddress,
         AggregatorV3Interface _priceFeed,
         uint256 duration
     ) {
-        wbtc = IERC20(_wbtcAddress);
+        usdc = IERC20(_usdcAddress);
         priceFeed = _priceFeed;
         deadline = block.timestamp + duration;
     }
@@ -50,7 +50,6 @@ contract BettingPlatform {
         }
 
         uint256 remainingTime = deadline - block.timestamp;
-        //change the 1 days to 1 days
         uint256 totalTime = deadline - (block.timestamp - 90 days);
         uint256 bonusFactorRange = BONUS_FACTOR_MAX - BONUS_FACTOR_MIN;
 
@@ -68,9 +67,9 @@ contract BettingPlatform {
         require(_betType != BetType.Invalid, "Bet Type is invalid");
 
         uint256 bonusFactor = calculateBonusFactor();
-        uint256 effectiveAmount = (_amount * bonusFactor) / 1 ether;
+        uint256 effectiveAmount = (_amount * bonusFactor) / 10 ** 6;
 
-        wbtc.transferFrom(msg.sender, address(this), _amount);
+        usdc.transferFrom(msg.sender, address(this), _amount);
 
         bets[_betType][msg.sender] += effectiveAmount;
         totalBets[_betType] += effectiveAmount;
@@ -95,7 +94,7 @@ contract BettingPlatform {
         emit BetsResolved(uint256(btcPrice), winningSide);
     }
 
-    //this can be called onlyOnnce per user
+    //this can be called onlyOnce per user
     function claimReward() external {
         require(winningSide != BetType.Invalid, "Bets not resolved yet");
 
@@ -111,7 +110,7 @@ contract BettingPlatform {
 
         bets[winningSide][msg.sender] = 0;
 
-        wbtc.transfer(msg.sender, reward);
+        usdc.transfer(msg.sender, reward);
 
         emit RewardClaimed(msg.sender, reward);
     }
