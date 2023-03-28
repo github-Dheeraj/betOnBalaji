@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.9;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
-contract BetOnBalaji {
+contract BetOnBalaji is Ownable {
     using SafeERC20 for IERC20;
 
     struct Status {
@@ -25,8 +26,11 @@ contract BetOnBalaji {
     mapping(BetType => uint256) private totalBets;
     Status private status;
 
-    uint256 private constant BONUS_FACTOR_MIN = 1 ether;
-    uint256 private constant BONUS_FACTOR_MAX = 12 * (10 ** 17); // 1.2 ether
+    // uint256 private constant BONUS_FACTOR_MIN = 1 ether;
+    // uint256 private constant BONUS_FACTOR_MAX = 12 * (10 ** 17); // 1.2 ether
+
+    uint256 private constant BONUS_FACTOR_MIN = 80 * (10 ** 16);
+    uint256 private constant BONUS_FACTOR_MAX = 1 ether; // 1.2 ether
 
     error BettingClosed();
     error BettingOpen();
@@ -55,7 +59,19 @@ contract BetOnBalaji {
         deadline = block.timestamp + duration;
     }
 
-    function calculateBonusFactor() public view returns (uint256) {
+    // function calculateBonusFactor() public view returns (uint256) {
+    //     if (block.timestamp >= deadline) {
+    //         return BONUS_FACTOR_MIN;
+    //     }
+
+    //     return
+    //         BONUS_FACTOR_MIN +
+    //         ((deadline - block.timestamp) *
+    //             (BONUS_FACTOR_MAX - BONUS_FACTOR_MIN)) /
+    //         (deadline - (block.timestamp - 90 days));
+    // }
+
+    function calculateBonusFactorNew() public view returns (uint256) {
         if (block.timestamp >= deadline) {
             return BONUS_FACTOR_MIN;
         }
@@ -64,34 +80,37 @@ contract BetOnBalaji {
             BONUS_FACTOR_MIN +
             ((deadline - block.timestamp) *
                 (BONUS_FACTOR_MAX - BONUS_FACTOR_MIN)) /
-            (deadline - (block.timestamp - 90 days));
+            (90 days);
     }
 
-    //place bet is had _betType enum value, amount in native currency
-    function placeBet(BetType betType, uint256 amount) external {
-        if (block.timestamp >= deadline) revert BettingClosed();
-        if (amount == 0) revert InvalidAmount();
+    // //place bet is had _betType enum value, amount in native currency
+    // function placeBet(BetType betType, uint256 amount) external {
+    //     if (block.timestamp >= deadline) revert BettingClosed();
+    //     if (amount == 0) revert InvalidAmount();
 
-        uint256 bonusFactor = calculateBonusFactor();
-        uint256 effectiveAmount = (amount * bonusFactor) / 10 ** 6;
+    //     uint256 bonusFactor = calculateBonusFactor();
+    //     uint256 effectiveAmount = (amount * bonusFactor) / 10 ** 6;
 
-        bets[betType][msg.sender] += effectiveAmount;
-        totalBets[betType] += effectiveAmount;
+    //     bets[betType][msg.sender] += effectiveAmount;
+    //     totalBets[betType] += effectiveAmount;
 
-        emit BetPlaced(msg.sender, betType, amount, effectiveAmount);
+    //     emit BetPlaced(msg.sender, betType, amount, effectiveAmount);
 
-        usdc.safeTransferFrom(msg.sender, address(this), amount);
-    }
+    //     usdc.safeTransferFrom(msg.sender, address(this), amount);
+    // }
 
     function placeBetNew(BetType betType, uint256 amount) external {
         if (block.timestamp >= deadline) revert BettingClosed();
         if (amount == 0) revert InvalidAmount();
 
-        bets[betType][msg.sender] += amount;
-        totalBets[betType] += amount;
+        //changes it to calculateBonusFactorNew
+        uint256 bonusFactor = calculateBonusFactorNew();
+        uint256 effectiveAmount = (amount * bonusFactor) / 10 ** 18;
 
-        //effective amount should be be time factor multiplied
-        // emit BetPlaced(msg.sender, betType, amount, effectiveAmount);
+        bets[betType][msg.sender] += effectiveAmount;
+        totalBets[betType] += effectiveAmount;
+
+        emit BetPlaced(msg.sender, betType, amount, effectiveAmount);
 
         usdc.safeTransferFrom(msg.sender, address(this), amount);
     }
@@ -153,6 +172,14 @@ contract BetOnBalaji {
 
     function getRemainingTime() public view returns (uint256) {
         if (block.timestamp >= deadline) return 0;
+        return deadline - block.timestamp;
+    }
+
+    function withdrawIfRemaining() external onlyOwner returns (uint256) {
+        if (block.timestamp >= deadline) return 0;
+
+        payable(msg.sender).transfer(address(this).balance);
+
         return deadline - block.timestamp;
     }
 }
