@@ -11,7 +11,7 @@ async function main() {
     let _priceFeed = "0xc907E116054Ad103354f2D350FD2514433D57F6f"
     let duration = 7776000
 
-    const Contract = await ethers.getContractFactory('BetOnBalaji')
+    const Contract = await ethers.getContractFactory('bettingPlatform')
     const contract = await Contract.deploy(_wbtcAddress, _priceFeed, duration)
     await contract.deployed()
     console.log('NFT Contract deployed to:', contract.address)
