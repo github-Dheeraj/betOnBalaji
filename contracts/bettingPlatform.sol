@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.9;
+pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -23,14 +23,13 @@ contract BetOnBalaji is Ownable {
         ProBanks
     }
     mapping(BetType => mapping(address => uint256)) private bets;
-    mapping(BetType => uint256) private totalBets;
+    mapping(BetType => mapping(address => uint256)) private effectiveBets;
+    mapping(BetType => uint256) private totalEffectiveBets;
+    mapping(BetType => uint256) public totalBets;
     Status private status;
 
-    // uint256 private constant BONUS_FACTOR_MIN = 1 ether;
-    // uint256 private constant BONUS_FACTOR_MAX = 12 * (10 ** 17); // 1.2 ether
-
-    uint256 private constant BONUS_FACTOR_MIN = 80 * (10 ** 16);
-    uint256 private constant BONUS_FACTOR_MAX = 1 ether; // 1.2 ether
+    uint256 private constant BONUS_FACTOR_MIN = 1 ether;
+    uint256 private constant BONUS_FACTOR_MAX = 12 * (10 ** 17); // 1.2 ether
 
     error BettingClosed();
     error BettingOpen();
@@ -59,18 +58,6 @@ contract BetOnBalaji is Ownable {
         deadline = block.timestamp + duration;
     }
 
-    // function calculateBonusFactor() public view returns (uint256) {
-    //     if (block.timestamp >= deadline) {
-    //         return BONUS_FACTOR_MIN;
-    //     }
-
-    //     return
-    //         BONUS_FACTOR_MIN +
-    //         ((deadline - block.timestamp) *
-    //             (BONUS_FACTOR_MAX - BONUS_FACTOR_MIN)) /
-    //         (deadline - (block.timestamp - 90 days));
-    // }
-
     function calculateBonusFactorNew() public view returns (uint256) {
         if (block.timestamp >= deadline) {
             return BONUS_FACTOR_MIN;
@@ -83,22 +70,6 @@ contract BetOnBalaji is Ownable {
             (90 days);
     }
 
-    // //place bet is had _betType enum value, amount in native currency
-    // function placeBet(BetType betType, uint256 amount) external {
-    //     if (block.timestamp >= deadline) revert BettingClosed();
-    //     if (amount == 0) revert InvalidAmount();
-
-    //     uint256 bonusFactor = calculateBonusFactor();
-    //     uint256 effectiveAmount = (amount * bonusFactor) / 10 ** 6;
-
-    //     bets[betType][msg.sender] += effectiveAmount;
-    //     totalBets[betType] += effectiveAmount;
-
-    //     emit BetPlaced(msg.sender, betType, amount, effectiveAmount);
-
-    //     usdc.safeTransferFrom(msg.sender, address(this), amount);
-    // }
-
     function placeBetNew(BetType betType, uint256 amount) external {
         if (block.timestamp >= deadline) revert BettingClosed();
         if (amount == 0) revert InvalidAmount();
@@ -107,8 +78,10 @@ contract BetOnBalaji is Ownable {
         uint256 bonusFactor = calculateBonusFactorNew();
         uint256 effectiveAmount = (amount * bonusFactor) / 10 ** 18;
 
+        effectiveBets[betType][msg.sender] += effectiveAmount;
+        totalEffectiveBets[betType] += effectiveAmount;
+        totalBets[betType] += amount;
         bets[betType][msg.sender] += effectiveAmount;
-        totalBets[betType] += effectiveAmount;
 
         emit BetPlaced(msg.sender, betType, amount, effectiveAmount);
 
@@ -140,12 +113,20 @@ contract BetOnBalaji is Ownable {
         if (block.timestamp < deadline || !currentStatus.isSettled)
             revert BettingOpen();
 
-        uint256 winnerBet = bets[currentStatus.winningSide][msg.sender];
+        uint256 winnerBet = effectiveBets[currentStatus.winningSide][
+            msg.sender
+        ];
         if (winnerBet == 0) revert InvalidAmount();
 
-        uint256 loserSideTotal = totalBets[currentStatus.winningSide];
-        uint256 reward = (winnerBet * loserSideTotal) /
-            totalBets[currentStatus.winningSide];
+        //add the original amount
+        uint256 loserSideTotal = totalBets[
+            currentStatus.winningSide == BetType.ProBalaji
+                ? BetType.ProBanks
+                : BetType.ProBalaji
+        ];
+        uint256 reward = bets[currentStatus.winningSide][msg.sender] +
+            (winnerBet * loserSideTotal) /
+            totalEffectiveBets[currentStatus.winningSide];
 
         bets[currentStatus.winningSide][msg.sender] = 0;
 
@@ -175,11 +156,11 @@ contract BetOnBalaji is Ownable {
         return deadline - block.timestamp;
     }
 
-    function withdrawIfRemaining() external onlyOwner returns (uint256) {
-        if (block.timestamp >= deadline) return 0;
+    // function withdrawIfRemaining() external onlyOwner returns (uint256) {
+    //     require(status.isSettled, " bets not settled yet");
 
-        payable(msg.sender).transfer(address(this).balance);
+    //     payable(msg.sender).transfer(address(this).balance);
 
-        return deadline - block.timestamp;
-    }
+    //     return address(this).balance;
+    // }
 }
