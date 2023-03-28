@@ -5,20 +5,18 @@ require("@nomiclabs/hardhat-etherscan");
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
   networks: {
-    hardhat: {
-      gasLimit: 205000
-    },
     polygon: {
       url: process.env.POLYGON_URL,
       accounts: [process.env.ACCOUNT_KEY],
     }
   },
   solidity: {
-    version: "0.8.17",
+    version: "0.8.19",
+    viaIR: true,
     settings: {
       optimizer: {
         enabled: true,
-        runs: 1,
+        runs: 999999,
       },
     },
   },
