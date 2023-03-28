@@ -48,15 +48,14 @@ contract BettingPlatform {
         if (block.timestamp >= deadline) {
             return BONUS_FACTOR_MIN;
         }
-
+        //90 -()
         uint256 remainingTime = deadline - block.timestamp;
         uint256 totalTime = deadline - (block.timestamp - 90 days);
         uint256 bonusFactorRange = BONUS_FACTOR_MAX - BONUS_FACTOR_MIN;
 
         uint256 bonusFactor = BONUS_FACTOR_MIN +
-            (remainingTime * bonusFactorRange) /
+            (remainingTime * bonusFactorRange) / 
             totalTime;
-        console.log(bonusFactor);
         return bonusFactor;
     }
 
@@ -67,7 +66,7 @@ contract BettingPlatform {
         require(_betType != BetType.Invalid, "Bet Type is invalid");
 
         uint256 bonusFactor = calculateBonusFactor();
-        uint256 effectiveAmount = (_amount * bonusFactor) / 10 ** 6;
+        uint256 effectiveAmount = (_amount * bonusFactor) / 1 ether;
 
         usdc.transferFrom(msg.sender, address(this), _amount);
 
@@ -78,7 +77,6 @@ contract BettingPlatform {
     }
 
     //Single time bet settlement
-    //anyone can call this fucntion
     function resolveBets() external {
         require(block.timestamp >= deadline, "Betting still open");
         require(winningSide == BetType.Invalid, "Bets already resolved");
@@ -89,7 +87,6 @@ contract BettingPlatform {
         winningSide = uint256(btcPrice) >= 1000000 * 10 ** 8
             ? BetType.ProBalaji
             : BetType.ProBanks;
-        // winningSide = uint256(_btcPrice) >= 1000000 ? BetType.ProBalaji : BetType.ProBanks;
 
         emit BetsResolved(uint256(btcPrice), winningSide);
     }
@@ -132,7 +129,7 @@ contract BettingPlatform {
     }
 
     function getRemainingTime() public view returns (uint256) {
-        require(block.timestamp > deadline, "Betting closed");
+        require(deadline > block.timestamp, "Betting closed");
         return deadline - block.timestamp;
     }
 }
